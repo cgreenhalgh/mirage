@@ -1,7 +1,7 @@
 open Net.Nettypes
 
 type request
-val init_request : unit Lwt.u -> (unit -> string Lwt.t) -> request Lwt.t
+val init_request : unit Lwt.u -> (unit -> string Lwt.t) -> (int -> Bitstring.t Lwt.t) -> request Lwt.t
 val meth : request -> Types.meth
 val uri : request -> string
 val path : request -> string

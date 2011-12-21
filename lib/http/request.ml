@@ -47,7 +47,7 @@ type request = {
 
 exception Length_required (* HTTP 411 *)
  
-let init_request finished ic =
+let init_request finished ic read_some =
   let unopt def = function
     | None -> def
     | Some v -> v
@@ -59,8 +59,8 @@ let init_request finished ic =
   lwt headers = Parser.parse_headers ic in
   let headers = List.map (fun (h,v) -> (String.lowercase h, v)) headers in
   lwt body = match meth with
-(* TODO XXX
-    |`POST -> begin
+    |`POST
+		|`PUT -> begin
       let limit =
         try
           Some (Int64.of_string (List.assoc "content-length" headers))
@@ -69,14 +69,21 @@ let init_request finished ic =
       match limit with 
       |None -> fail Length_required (* TODO replace with HTTP 411 response *)
       |Some count ->
-        let read_t =
-          lwt segs = Net.Channel.TCPv4.read_view ic (Int64.to_int count) in
-          Lwt.wakeup finished ();
-          return segs in
-        return [`Inchan read_t]
-    end
-*)
-    
+				(* fix this bit... should return an Bitstring.t Lwt.stream using read_some (len req'd), but limit*)
+				(* returned bytes to count *)
+				let remain = ref count in 
+        let readblock () = 
+					let len = 4096 in
+					let len = if !remain < 4096L then Int64.to_int !remain else len in
+					if !remain<=0L || len<=0 then return None 
+					else
+							lwt bytes = read_some len in
+							remain := Int64.sub !remain (Int64.of_int ((Bitstring.bitstring_length bytes)/8));
+							return (Some bytes)
+				in
+				  (* message `Inchan int64 * (Bitstring.t Lwt_stream.t) *)
+  	      return [`Inchan (count, (Lwt_stream.from readblock))]
+    end    
     |_ ->  (* Empty body for methods other than POST *)
        Lwt.wakeup finished ();
        return [`String ""]
@@ -131,6 +138,7 @@ let param_all ?meth r name =
    | None -> List.rev (Hashtbl.find_all r.r_params name)
    | Some `DELETE
    | Some `HEAD
+   | Some `PUT
    | Some `GET -> Misc.list_assoc_all name r.r_get_params
    | Some `POST -> Misc.list_assoc_all name r.r_post_params)
 

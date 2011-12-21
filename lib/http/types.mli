@@ -35,7 +35,8 @@ type meth =
   | `POST
   | `HEAD
   | `DELETE
-  ]
+  | `PUT
+	]
 
   (** authentication information *)
 type auth_info =
