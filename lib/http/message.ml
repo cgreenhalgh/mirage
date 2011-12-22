@@ -57,40 +57,42 @@ let body_size cl =
 
 (* may block *)
 let string_of_body cl =
-	(* special case - single string *)
-	match cl with
-		| `String s :: [] -> return s
-		| [] -> return ""
-		| _ :: _ -> 
-			let size64 = body_size cl in
-			(* overflow? *)
-			let size = Int64.to_int size64 in
-			let buf = String.create size in
-			let rec copy cs buf pos = begin
-				match cs with
-					| `String s :: rest -> 
-						let len = String.length s in
-						String.blit s 0 buf pos len;
-						copy rest buf (pos+len)
-					| `Inchan (sz,stream) :: rest -> 
-						let rec copystream stream buf pos = begin
-							lwt bits = Lwt_stream.get stream in begin
-								match bits with
-									| None -> return pos
-									| Some bits ->
-										let s = Bitstring.string_of_bitstring bits in
-										let len = String.length s in
-										String.blit s 0 buf pos len;
-										copystream stream buf (pos+len)
-							end
-						end in 
-						lwt count = copystream stream buf pos in
-						(* check count==sz?! *)
-						copy rest buf (pos+(Int64.to_int sz))
-					| _ -> return buf
-			end in
-			copy cl buf 0
-			
+  (* special case - single string *)
+  match cl with
+    | `String s :: [] -> return s
+    | [] -> return ""
+    | _ :: _ -> 
+      let size64 = body_size cl in
+      (* overflow? *)
+      let size = Int64.to_int size64 in
+      let buf = String.create size in
+      (* each contents... *)
+      let rec copy cs buf pos = begin
+        match cs with
+	  | `String s :: rest -> 
+	    let len = String.length s in
+            String.blit s 0 buf pos len;
+            copy rest buf (pos+len)
+          | `Inchan (sz,stream) :: rest -> 
+            (* each bitstring from stream of current contents *)
+            let rec copystream stream buf pos = begin
+              lwt bits = Lwt_stream.get stream in begin
+                match bits with
+                  | None -> return pos
+                  | Some bits ->
+                    let s = Bitstring.string_of_bitstring bits in
+                    let len = String.length s in
+                    String.blit s 0 buf pos len;
+                    copystream stream buf (pos+len)
+              end
+            end in 
+            lwt count = copystream stream buf pos in
+            (* check count==sz?! *)
+            copy rest buf (pos+(Int64.to_int sz))
+          | _ -> return buf
+      end in
+      copy cl buf 0
+		
 let set_body msg contents =
   msg.m_contents <- [contents]
 

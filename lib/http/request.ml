@@ -92,20 +92,20 @@ let init_request finished ic read_some =
       match limit with 
       |None -> fail Length_required (* TODO replace with HTTP 411 response *)
       |Some count ->
-				(* fix this bit... should return an Bitstring.t Lwt.stream using read_some (len req'd), but limit*)
-				(* returned bytes to count *)
-				let remain = ref count in 
+        (* returns a Bitstring.t Lwt.stream using read_some (len req'd), but limit*)
+	(* returned bytes to count *)
+	let remain = ref count in 
         let readblock () = 
-					let len = 4096 in
-					let len = if !remain < 4096L then Int64.to_int !remain else len in
-					if !remain<=0L || len<=0 then return None 
-					else
-							lwt bytes = read_some len in
-							remain := Int64.sub !remain (Int64.of_int ((Bitstring.bitstring_length bytes)/8));
-							return (Some bytes)
-				in
-				  (* message `Inchan int64 * (Bitstring.t Lwt_stream.t) *)
-  	      return [`Inchan (count, (Lwt_stream.from readblock))]
+	  let len = 4096 in
+	  let len = if !remain < 4096L then Int64.to_int !remain else len in
+	  if !remain<=0L || len<=0 then return None 
+	  else
+	    lwt bytes = read_some len in
+	    remain := Int64.sub !remain (Int64.of_int ((Bitstring.bitstring_length bytes)/8));
+	    return (Some bytes)
+ 	in
+	  (* message `Inchan int64 * (Bitstring.t Lwt_stream.t) *)
+  	  return [`Inchan (count, (Lwt_stream.from readblock))]
     end    
     |_ ->  (* Empty body for methods other than POST *)
        Lwt.wakeup finished ();
