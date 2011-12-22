@@ -46,7 +46,30 @@ type request = {
 }
 
 exception Length_required (* HTTP 411 *)
- 
+
+(* handle x-www-form-encoded POST - from parser.ml pre-august 2011 refactor *)
+let bindings_sep, binding_sep =
+  Re.(compile (char '&'),
+      compile (char '=')
+     )
+
+let url_decode url = Url.decode url
+
+let split_query_params query =
+  let bindings = Re.split_delim bindings_sep query in
+  match bindings with
+  | [] -> raise (Malformed_query query)
+  | bindings ->
+      List.map
+        (fun binding ->
+          match Re.split_delim binding_sep binding with
+          | [ ""; b ] -> (* '=b' *)
+              raise (Malformed_query_part (binding, query))
+          | [ a; "" ] | [ a ] -> (* 'a=' *) (url_decode a, "")
+          | [ a; b ]  -> (* 'a=b' *) (url_decode a, url_decode b)
+          | _ -> raise (Malformed_query_part (binding, query)))
+        bindings
+
 let init_request finished ic read_some =
   let unopt def = function
     | None -> def
@@ -91,16 +114,14 @@ let init_request finished ic read_some =
   lwt query_post_params, body =
     match meth with
     |`POST -> begin
- (* TODO
       try
         let ct = List.assoc "content-type" headers in (* TODO Not_found *)
         if ct = "application/x-www-form-urlencoded" then
           (Message.string_of_body body) >|=
-          (fun s -> Parser.split_query_params s, [`String s])
+          (fun s -> split_query_params s, [`String s])
          else
           return ([], body)
       with Not_found ->
-  *)
         return ([], body)
     end
     | _ -> return ([], body)

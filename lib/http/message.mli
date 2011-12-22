@@ -6,6 +6,7 @@ type contents = [
 type message
 val body : message -> contents list
 val body_size : contents list -> int64
+val string_of_body : contents list -> string Lwt.t
 val set_body : message -> contents -> unit
 val add_body : message -> contents -> unit
 val add_header : message -> name:string -> value:string -> unit
